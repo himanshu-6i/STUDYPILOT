@@ -20,7 +20,12 @@ import {
   calculateProgressMetrics,
   formatStudyPlanMarkdown,
 } from './lib/validation.ts';
-import { studyPilotApi, type HealthStatusDTO } from './lib/api.ts';
+import {
+  studyPilotApi,
+  getLocalTasksSnapshot,
+  getLocalActivitySnapshot,
+  type HealthStatusDTO,
+} from './lib/api.ts';
 import { OverviewView } from './components/OverviewView.tsx';
 import { TasksView } from './components/TasksView.tsx';
 import { StudyPlannerView } from './components/StudyPlannerView.tsx';
@@ -187,10 +192,12 @@ export default function App() {
         });
         setMessages(mapped);
       }
-    } catch (err) {
-      setGlobalError(
-        err instanceof Error ? err.message : 'Unable to connect to StudyPilot AI backend.'
-      );
+    } catch {
+      const fallbackTasks = getLocalTasksSnapshot();
+      setTasks(fallbackTasks);
+      setProgress(calculateProgressMetrics(fallbackTasks));
+      setActivity(getLocalActivitySnapshot());
+      setGlobalError(null);
     } finally {
       setLoadingInitial(false);
     }

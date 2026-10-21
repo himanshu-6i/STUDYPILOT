@@ -49,6 +49,9 @@ const LS_TASKS_KEY = 'studypilot_persisted_tasks_v1';
 const LS_ACTIVITY_KEY = 'studypilot_persisted_activity_v1';
 const LS_CONV_PREFIX = 'studypilot_persisted_conv_v1_';
 
+// Tracks whether /api/* is unavailable (e.g. on static Vercel deployment) so we never spam 404s
+let useClientEngineMode = false;
+
 const DEFAULT_SEED_TASKS: StudyTask[] = [
   {
     id: 1,
@@ -103,7 +106,7 @@ const DEFAULT_SEED_TASKS: StudyTask[] = [
   },
 ];
 
-function getLocalTasks(): StudyTask[] {
+export function getLocalTasksSnapshot(): StudyTask[] {
   try {
     const raw = window.localStorage.getItem(LS_TASKS_KEY);
     if (raw) {
@@ -125,12 +128,12 @@ function saveLocalTasks(tasks: StudyTask[]): void {
   }
 }
 
-function getLocalActivity(): AgentActivityRecord[] {
+export function getLocalActivitySnapshot(): AgentActivityRecord[] {
   try {
     const raw = window.localStorage.getItem(LS_ACTIVITY_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
     const seedAct: AgentActivityRecord[] = [
       {
@@ -157,7 +160,7 @@ function appendLocalActivity(
   conversation_id = 'alexa_sim_session_01',
   status: 'success' | 'error' = 'success'
 ): AgentActivityRecord {
-  const current = getLocalActivity();
+  const current = getLocalActivitySnapshot();
   const nextId = current.reduce((max, a) => Math.max(max, a.id), 0) + 1;
   const rec: AgentActivityRecord = {
     id: nextId,
@@ -202,6 +205,10 @@ function saveLocalConversation(conversationId: string, messages: ChatMessageReco
 }
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
+  if (useClientEngineMode) {
+    throw new Error('CLIENT_ENGINE_ACTIVE');
+  }
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -211,9 +218,15 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
     },
   });
 
+  if (response.status === 404 || response.status === 502 || response.status === 503) {
+    useClientEngineMode = true;
+    throw new Error('CLIENT_ENGINE_ACTIVE');
+  }
+
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    throw new Error(`Endpoint ${url} returned non-JSON response (${response.status})`);
+    useClientEngineMode = true;
+    throw new Error('CLIENT_ENGINE_ACTIVE');
   }
 
   const data = (await response.json()) as Record<string, unknown>;
@@ -234,13 +247,12 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 export const studyPilotApi = {
   async getHealth(): Promise<HealthStatusDTO> {
     try {
-      const res = await requestJson<HealthStatusDTO>('/api/health');
-      return res;
+      return await requestJson<HealthStatusDTO>('/api/health');
     } catch {
-      const tasks = getLocalTasks();
+      const tasks = getLocalTasksSnapshot();
       return {
         status: 'healthy',
-        service: 'StudyPilot AI (Vercel Edge + Local SQLite Mirror)',
+        service: 'StudyPilot AI (Alexa+ Simulated Experience)',
         database: 'sqlite_persisted',
         tasks_count: tasks.length,
         provider: 'studypilot-agent',
@@ -274,7 +286,7 @@ export const studyPilotApi = {
       }
       return res;
     } catch {
-      const allTasks = getLocalTasks();
+      const allTasks = getLocalTasksSnapshot();
       const filtered = allTasks.filter((t) => {
         if (filters?.status && filters.status !== 'all' && t.status !== filters.status) return false;
         if (filters?.priority && filters.priority !== 'all' && t.priority !== filters.priority) {
@@ -312,7 +324,7 @@ export const studyPilotApi = {
         method: 'POST',
         body: JSON.stringify(input),
       });
-      const current = getLocalTasks();
+      const current = getLocalTasksSnapshot();
       saveLocalTasks([res.task, ...current.filter((t) => t.id !== res.task.id)]);
       return res;
     } catch {
@@ -320,7 +332,7 @@ export const studyPilotApi = {
       if (!valid.valid || !valid.data) {
         throw new Error(valid.error || 'Invalid task input.');
       }
-      const all = getLocalTasks();
+      const all = getLocalTasksSnapshot();
       const nextId = all.reduce((max, t) => Math.max(max, t.id), 0) + 1;
       const now = new Date().toISOString();
       const newTask: StudyTask = {
@@ -362,7 +374,7 @@ export const studyPilotApi = {
           body: JSON.stringify(input),
         }
       );
-      const current = getLocalTasks();
+      const current = getLocalTasksSnapshot();
       saveLocalTasks(current.map((t) => (t.id === res.task.id ? res.task : t)));
       return res;
     } catch {
@@ -370,7 +382,7 @@ export const studyPilotApi = {
       if (!valid.valid || !valid.data) {
         throw new Error(valid.error || 'Invalid task update.');
       }
-      const all = getLocalTasks();
+      const all = getLocalTasksSnapshot();
       const idx = all.findIndex((t) => t.id === taskId);
       if (idx === -1) throw new Error(`Task #${taskId} not found.`);
       const updatedTask: StudyTask = {
@@ -406,11 +418,11 @@ export const studyPilotApi = {
       }>(`/api/tasks/${taskId}`, {
         method: 'DELETE',
       });
-      const current = getLocalTasks();
+      const current = getLocalTasksSnapshot();
       saveLocalTasks(current.filter((t) => t.id !== taskId));
       return res;
     } catch {
-      const all = getLocalTasks();
+      const all = getLocalTasksSnapshot();
       const target = all.find((t) => t.id === taskId);
       const remaining = all.filter((t) => t.id !== taskId);
       saveLocalTasks(remaining);
@@ -441,16 +453,17 @@ export const studyPilotApi = {
       if (Array.isArray(res.tasks)) saveLocalTasks(res.tasks);
       return res;
     } catch {
-      // Resilient Client-Side Validated Tool Execution Fallback for static/serverless edge deployments
       const lower = payload.message.toLowerCase();
-      const currentTasks = getLocalTasks();
+      const currentTasks = getLocalTasksSnapshot();
       const toolExecutions: ToolExecutionOutcomeDTO[] = [];
       let reply = '';
 
       if (
         (lower.includes('physics') && lower.includes('chemistry')) ||
         lower.includes('study plan') ||
-        lower.includes('by friday')
+        lower.includes('by friday') ||
+        lower.includes('calculus') ||
+        lower.includes('exam')
       ) {
         const planItems: CreateTaskInput[] = [
           {
@@ -523,7 +536,7 @@ export const studyPilotApi = {
         }
         saveLocalTasks(updatedList);
         const prog = calculateProgressMetrics(updatedList);
-        reply = `I have decomposed your Friday deadline into **4 prioritized study tasks** (3 Physics topics and 1 Chemistry assignment) and persisted them:
+        reply = `I have decomposed your study goal into **4 prioritized tasks** and saved them to your study plan:
 
 1. **[HIGH] Physics Topic 1: Kinematics & Newtonian Mechanics Review** — Due 2026-10-20 (60m)
 2. **[HIGH] Physics Topic 2: Work, Energy & Rotational Dynamics** — Due 2026-10-21 (60m)
@@ -572,7 +585,7 @@ export const studyPilotApi = {
         reply = `Here is your live **StudyPilot AI** progress summary:\n- **Completion Rate**: ${prog.completion_rate}% (${prog.completed_tasks} completed, ${prog.pending_tasks} pending)\n- **High-Priority Pending**: ${prog.high_priority_pending} tasks\n- **Estimated Workload Remaining**: ${prog.total_estimated_minutes_remaining} minutes\n\nTell me any new assignment or deadline and I will break it into prioritized study tasks.`;
       }
 
-      const finalTasks = getLocalTasks();
+      const finalTasks = getLocalTasksSnapshot();
       const finalProgress = calculateProgressMetrics(finalTasks);
       const history = getLocalConversation(payload.conversation_id);
       const now = new Date().toISOString();
@@ -606,7 +619,7 @@ export const studyPilotApi = {
         model: 'alexa-plus-sim-v1',
         tasks: finalTasks,
         progress: finalProgress,
-        activity: getLocalActivity(),
+        activity: getLocalActivitySnapshot(),
       };
     }
   },
@@ -617,7 +630,7 @@ export const studyPilotApi = {
         `/api/activity?limit=${limit}`
       );
     } catch {
-      return { activity: getLocalActivity().slice(0, limit) };
+      return { activity: getLocalActivitySnapshot().slice(0, limit) };
     }
   },
 

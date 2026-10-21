@@ -1,0 +1,6 @@
+{
+  "name": "StudyPilot AI",
+  "description": "Intelligent stateful study and productivity agent with validated tool calling, study plan decomposition, and persistent SQLite task tracking (Alexa+ Simulated Experience).",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

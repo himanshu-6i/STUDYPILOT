@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { createServer as createViteServer } from 'vite';
 import { StudyPilotRepository } from './src/server/database.ts';
 import { createConfiguredModelAdapter, runStudyPilotAgentTurn } from './src/server/agent.ts';
 import {
@@ -293,6 +292,7 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

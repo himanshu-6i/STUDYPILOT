@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
+import os from 'node:os';
 import {
   type StudyTask,
   type CreateTaskInput,
@@ -16,8 +17,19 @@ export class StudyPilotRepository {
   public readonly dbPath: string;
 
   constructor(customDbPath?: string) {
-    this.dbPath = customDbPath || process.env.DATABASE_PATH || path.resolve(process.cwd(), 'studypilot.db');
-    this.db = new DatabaseSync(this.dbPath);
+    const defaultPath = process.env.VERCEL
+      ? path.join(os.tmpdir(), 'studypilot.db')
+      : path.resolve(process.cwd(), 'studypilot.db');
+    const candidatePath = customDbPath || process.env.DATABASE_PATH || defaultPath;
+
+    try {
+      this.db = new DatabaseSync(candidatePath);
+      this.dbPath = candidatePath;
+    } catch {
+      const fallbackTmp = path.join(os.tmpdir(), 'studypilot.db');
+      this.db = new DatabaseSync(fallbackTmp);
+      this.dbPath = fallbackTmp;
+    }
     this.initSchema();
   }
 

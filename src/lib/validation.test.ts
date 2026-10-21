@@ -170,14 +170,16 @@ test('sortTasksByPriorityAndDeadline orders pending before completed, then by pr
   assert.deepEqual(sorted.map((t) => t.id), [4, 3, 2, 1]);
 });
 
-test('sanitizeForActivityLog redacts sensitive keys and truncates long values', () => {
+test('sanitizeForActivityLog redacts sensitive keys and raw API key patterns (AIza..., sk-...)', () => {
   const sanitized = sanitizeForActivityLog({
-    title: 'Normal task title',
+    title: 'Normal task with accidental key AIzaSyB1234567890abcdefghijklmnop',
+    note: 'OpenAI key sk-proj1234567890abcdefghijklmnop in text',
     api_key: 'sk-secret-12345',
     authToken: 'bearer-xyz',
   });
   const parsed = JSON.parse(sanitized);
-  assert.equal(parsed.title, 'Normal task title');
+  assert.equal(parsed.title, 'Normal task with accidental key [REDACTED_GEMINI_KEY]');
+  assert.equal(parsed.note, 'OpenAI key [REDACTED_OPENAI_KEY] in text');
   assert.equal(parsed.api_key, '[REDACTED]');
   assert.equal(parsed.authToken, '[REDACTED]');
 });

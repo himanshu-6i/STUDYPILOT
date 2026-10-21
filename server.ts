@@ -26,6 +26,8 @@ export function createStudyPilotApp(customRepo?: StudyPilotRepository) {
     .filter(Boolean);
 
   app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     const origin = req.headers.origin;
     if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production')) {
       res.setHeader('Access-Control-Allow-Origin', origin);

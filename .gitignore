@@ -4,8 +4,16 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.*
+**/.env
+**/.env.*
 !.env.example
+!backend/.env.example
+*.pem
+*.key
+*secret*
+.vercel/
 *.db
 *.db-journal
 *.db-shm
@@ -19,4 +27,5 @@ __pycache__/
 venv/
 env/
 .playwright-cli/
+
 

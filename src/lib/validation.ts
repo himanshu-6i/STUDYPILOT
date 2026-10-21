@@ -414,16 +414,24 @@ export function sortTasksByPriorityAndDeadline(tasks: StudyTask[]): StudyTask[] 
   });
 }
 
+export function redactSecretPatterns(text: string): string {
+  return text
+    .replace(/AIza[0-9A-Za-z\-_]{16,}/g, '[REDACTED_GEMINI_KEY]')
+    .replace(/sk-[0-9A-Za-z\-_]{16,}/g, '[REDACTED_OPENAI_KEY]')
+    .replace(/Bearer\s+[0-9A-Za-z\-._~+/]+=*/gi, 'Bearer [REDACTED_TOKEN]');
+}
+
 export function sanitizeForActivityLog(payload: unknown): string {
   if (!payload || typeof payload !== 'object') {
-    return String(payload ?? '');
+    return redactSecretPatterns(String(payload ?? ''));
   }
   const clone: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(payload as Record<string, unknown>)) {
-    if (/key|token|secret|password|authorization/i.test(key)) {
+    if (/key|token|secret|password|authorization|credential/i.test(key)) {
       clone[key] = '[REDACTED]';
-    } else if (typeof val === 'string' && val.length > 160) {
-      clone[key] = `${val.slice(0, 157)}...`;
+    } else if (typeof val === 'string') {
+      const scrubbed = redactSecretPatterns(val);
+      clone[key] = scrubbed.length > 160 ? `${scrubbed.slice(0, 157)}...` : scrubbed;
     } else {
       clone[key] = val;
     }

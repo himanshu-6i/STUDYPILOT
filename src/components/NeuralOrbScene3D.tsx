@@ -4,7 +4,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { StudyTask, ProgressMetrics } from '../lib/validation.ts';
 
-export type CameraPreset = 'hero_home' | 'planner_focus' | 'architecture_grid' | 'top_matrix' | 'advantages_wide';
+export type CameraPreset =
+  | 'hero_home'
+  | 'planner_focus'
+  | 'architecture_grid'
+  | 'top_matrix'
+  | 'advantages_wide';
 
 interface NeuralOrbScene3DProps {
   tasks: StudyTask[];
@@ -25,100 +30,6 @@ const _targetLookAt = new THREE.Vector3();
 const _currentLookAt = new THREE.Vector3(0, 0, 0);
 const _pointerNDC = new THREE.Vector2();
 const _tempVec = new THREE.Vector3();
-
-function createChromeCyberArm(
-  chromeMat: THREE.MeshStandardMaterial,
-  darkAlloyMat: THREE.MeshStandardMaterial,
-  cyanGlowMat: THREE.MeshBasicMaterial,
-  side: 'left' | 'right'
-): {
-  root: THREE.Group;
-  upperPincer: THREE.Group;
-  lowerPincer: THREE.Group;
-  wristGroup: THREE.Group;
-} {
-  const root = new THREE.Group();
-
-  const railGeo = new THREE.CylinderGeometry(0.065, 0.085, 2.2, 24);
-  railGeo.rotateZ(Math.PI / 2);
-
-  const topRail = new THREE.Mesh(railGeo, chromeMat);
-  topRail.position.set(0, 0.16, 0);
-  root.add(topRail);
-
-  const bottomRail = new THREE.Mesh(railGeo, chromeMat);
-  bottomRail.position.set(0, -0.16, 0);
-  root.add(bottomRail);
-
-  const coreGeo = new THREE.CylinderGeometry(0.09, 0.11, 1.85, 24);
-  coreGeo.rotateZ(Math.PI / 2);
-  const coreMesh = new THREE.Mesh(coreGeo, darkAlloyMat);
-  root.add(coreMesh);
-
-  const collarGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.14, 28);
-  collarGeo.rotateZ(Math.PI / 2);
-  [-0.65, 0.15, 0.78].forEach((xPos) => {
-    const collar = new THREE.Mesh(collarGeo, chromeMat);
-    collar.position.set(xPos, 0, 0);
-    root.add(collar);
-  });
-
-  const conduitGeo = new THREE.CylinderGeometry(0.022, 0.022, 1.9, 12);
-  conduitGeo.rotateZ(Math.PI / 2);
-  const conduit = new THREE.Mesh(conduitGeo, cyanGlowMat);
-  conduit.position.set(0, 0, 0.14);
-  root.add(conduit);
-
-  const wristGroup = new THREE.Group();
-  const dir = side === 'left' ? 1 : -1;
-  wristGroup.position.set(dir * 1.08, 0, 0);
-  root.add(wristGroup);
-
-  const knuckleGeo = new THREE.SphereGeometry(0.2, 28, 28);
-  const knuckle = new THREE.Mesh(knuckleGeo, darkAlloyMat);
-  wristGroup.add(knuckle);
-
-  const knuckleRingGeo = new THREE.TorusGeometry(0.22, 0.035, 16, 36);
-  knuckleRingGeo.rotateY(Math.PI / 2);
-  const knuckleRing = new THREE.Mesh(knuckleRingGeo, chromeMat);
-  wristGroup.add(knuckleRing);
-
-  const upperPincer = new THREE.Group();
-  const lowerPincer = new THREE.Group();
-  wristGroup.add(upperPincer);
-  wristGroup.add(lowerPincer);
-
-  const fingerCurveGeo = new THREE.CylinderGeometry(0.032, 0.058, 0.95, 20);
-  fingerCurveGeo.rotateZ(Math.PI / 2);
-
-  const upperFinger = new THREE.Mesh(fingerCurveGeo, chromeMat);
-  upperFinger.position.set(dir * 0.45, 0.16, 0);
-  upperFinger.rotation.z = dir * -0.22;
-  upperPincer.add(upperFinger);
-
-  const lowerFinger = new THREE.Mesh(fingerCurveGeo, chromeMat);
-  lowerFinger.position.set(dir * 0.45, -0.16, 0);
-  lowerFinger.rotation.z = dir * 0.22;
-  lowerPincer.add(lowerFinger);
-
-  if (side === 'right') {
-    const tineGeo = new THREE.CylinderGeometry(0.018, 0.035, 1.15, 16);
-    tineGeo.rotateZ(Math.PI / 2);
-    [-0.14, 0.14].forEach((zOff) => {
-      const tine = new THREE.Mesh(tineGeo, chromeMat);
-      tine.position.set(dir * 0.52, 0.04, zOff);
-      tine.rotation.y = zOff * 0.35;
-      upperPincer.add(tine);
-    });
-  }
-
-  const tipGeo = new THREE.SphereGeometry(0.055, 16, 16);
-  const tipMesh = new THREE.Mesh(tipGeo, cyanGlowMat);
-  tipMesh.position.set(dir * 0.88, 0, 0);
-  wristGroup.add(tipMesh);
-
-  return { root, upperPincer, lowerPincer, wristGroup };
-}
 
 export function NeuralOrbScene3D({
   tasks,
@@ -338,31 +249,7 @@ export function NeuralOrbScene3D({
       });
     });
 
-    const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      metalness: 0.96,
-      roughness: 0.12,
-      envMapIntensity: 2.0,
-    });
-    const darkAlloyMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.85,
-      roughness: 0.28,
-    });
-    const cyanGlowMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-    });
-
-    const leftArm = createChromeCyberArm(chromeMat, darkAlloyMat, cyanGlowMat, 'left');
-    leftArm.root.position.set(-3.45, 1.38, 0.25);
-    leftArm.root.rotation.set(0.12, 0.18, -0.46);
-    sculptureGroup.add(leftArm.root);
-
-    const rightArm = createChromeCyberArm(chromeMat, darkAlloyMat, cyanGlowMat, 'right');
-    rightArm.root.position.set(3.55, 0.08, 0.15);
-    rightArm.root.rotation.set(-0.08, -0.22, 0.14);
-    sculptureGroup.add(rightArm.root);
-
+    // Subtle floating refractive glass micro-droplets around the central sculpture
     const dropletGeo = new THREE.SphereGeometry(0.09, 20, 20);
     const dropletMat = new THREE.MeshPhysicalMaterial({
       color: 0xe0f2fe,
@@ -373,11 +260,11 @@ export function NeuralOrbScene3D({
     });
     const droplets: Array<{ mesh: THREE.Mesh; basePos: THREE.Vector3; speed: number }> = [];
     const dropletCoords = [
-      [-2.1, 0.9, 0.9],
-      [2.2, 0.85, 0.7],
-      [-1.8, -1.1, 0.6],
-      [1.95, -0.95, 0.8],
-      [0.2, 1.65, 0.4],
+      [-1.75, 0.9, 0.9],
+      [1.8, 0.85, 0.7],
+      [-1.6, -1.05, 0.6],
+      [1.65, -0.95, 0.8],
+      [0.2, 1.55, 0.4],
     ];
     dropletCoords.forEach(([x, y, z], i) => {
       const m = new THREE.Mesh(dropletGeo, dropletMat);
@@ -560,49 +447,6 @@ export function NeuralOrbScene3D({
       innerRing1.rotation.z = elapsed * (focusActive ? 1.6 : 0.7) + scroll * 3.0;
       innerRing2.rotation.x = -elapsed * (focusActive ? 1.3 : 0.55) - scroll * 2.5;
 
-      // Chrome Cybernetic Arms articulate smoothly as you scroll through sections
-      const armReach = Math.sin(scroll * Math.PI * 2) * 0.35 + (busy ? 0.4 : 0.0);
-      const armTilt = Math.cos(scroll * Math.PI) * 0.15;
-
-      leftArm.root.position.x = THREE.MathUtils.lerp(
-        leftArm.root.position.x,
-        -3.45 + armReach + pointerX * 0.12,
-        0.06
-      );
-      leftArm.root.position.y = THREE.MathUtils.lerp(
-        leftArm.root.position.y,
-        1.38 - scroll * 0.55 + Math.sin(elapsed * 1.5) * 0.06,
-        0.06
-      );
-      leftArm.root.rotation.z = THREE.MathUtils.lerp(
-        leftArm.root.rotation.z,
-        -0.46 + scroll * 0.28,
-        0.06
-      );
-      leftArm.wristGroup.rotation.z = Math.sin(elapsed * 1.8) * 0.12 + armTilt;
-      const pincerOpen = 0.08 + Math.sin(elapsed * (busy ? 6 : 2) + scroll * 4) * 0.05;
-      leftArm.upperPincer.rotation.z = pincerOpen;
-      leftArm.lowerPincer.rotation.z = -pincerOpen;
-
-      rightArm.root.position.x = THREE.MathUtils.lerp(
-        rightArm.root.position.x,
-        3.55 - armReach + pointerX * 0.12,
-        0.06
-      );
-      rightArm.root.position.y = THREE.MathUtils.lerp(
-        rightArm.root.position.y,
-        0.08 + scroll * 0.45 + Math.cos(elapsed * 1.4) * 0.06,
-        0.06
-      );
-      rightArm.root.rotation.z = THREE.MathUtils.lerp(
-        rightArm.root.rotation.z,
-        0.14 - scroll * 0.22,
-        0.06
-      );
-      rightArm.wristGroup.rotation.y = Math.cos(elapsed * 1.6) * 0.14 - armTilt;
-      rightArm.upperPincer.rotation.z = -pincerOpen;
-      rightArm.lowerPincer.rotation.z = pincerOpen;
-
       droplets.forEach((d, idx) => {
         d.mesh.position.y = d.basePos.y + Math.sin(elapsed * d.speed + idx + scroll * 3) * 0.14;
       });
@@ -624,9 +468,6 @@ export function NeuralOrbScene3D({
       innerCoreMat.dispose();
       innerRingGeo.dispose();
       innerRingMat.dispose();
-      chromeMat.dispose();
-      darkAlloyMat.dispose();
-      cyanGlowMat.dispose();
       dropletGeo.dispose();
       dropletMat.dispose();
       envTexture.dispose();
@@ -643,7 +484,7 @@ export function NeuralOrbScene3D({
         background:
           'linear-gradient(125deg, #8A96A3 0%, #96A3B0 32%, #76B4DC 72%, #479BE1 100%)',
       }}
-      aria-label="Interactive 3D Aero-Glass Capsule Cluster and Chrome Cybernetic Study Core"
+      aria-label="Interactive 3D Aero-Glass Capsule Cluster and Study Core"
     />
   );
 }
